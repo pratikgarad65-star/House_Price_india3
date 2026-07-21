@@ -1,21 +1,25 @@
 import os
 import pickle
 import pandas as pd
-from flask import Flask, render_template, request, render_template_string
+from flask import Flask, render_template, request
 
 app = Flask(__name__)
 
-# Model loading
+# --- Load Model Safely ---
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'linear_model.pkl')
+model = None
 
 try:
-    with open(MODEL_PATH, 'rb') as f:
-        model = pickle.load(f)
-    print("✅ Model loaded successfully!")
+    if os.path.exists(MODEL_PATH):
+        with open(MODEL_PATH, 'rb') as f:
+            model = pickle.load(f)
+        print("✅ Model loaded successfully!")
+    else:
+        print(f"❌ Error: {MODEL_PATH} not found.")
 except Exception as e:
     print(f"❌ Error loading model: {e}")
-    model = None
 
+# --- Feature Names (Exact order expected by model) ---
 FEATURE_NAMES = [
     'number of bedrooms',
     'number of bathrooms',
@@ -37,23 +41,29 @@ FEATURE_NAMES = [
 
 @app.route('/', methods=['GET'])
 def index():
+    """Renders the main input page."""
     try:
         return render_template('index.html')
     except Exception as e:
-        return f"<h2>Template Error: Make sure index.html is inside a 'templates' folder. Details: {e}</h2>", 500
+        return f"<h3>Template Error: Make sure 'index.html' is inside a folder named 'templates'. Details: {e}</h3>", 500
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    if not model:
-        return render_template('index.html', error="Model failed to load on server.")
+    """Handles price predictions."""
+    if model is None:
+        return render_template('index.html', error="Model file not found or failed to load on the server.")
 
     try:
+        # Extract features safely
         input_data = {}
         for feature in FEATURE_NAMES:
             raw_val = request.form.get(feature, 0)
             input_data[feature] = [float(raw_val)]
 
+        # Convert input into a pandas DataFrame matching feature names
         df_input = pd.DataFrame(input_data)
+
+        # Make prediction
         prediction = model.predict(df_input)[0]
         formatted_price = f"${max(0, prediction):,.2f}"
 
