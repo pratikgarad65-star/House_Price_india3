@@ -1,22 +1,21 @@
 import os
 import pickle
 import pandas as pd
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, render_template_string
 
 app = Flask(__name__)
 
-# Load the pickled linear regression model
+# Model loading
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'linear_model.pkl')
 
 try:
     with open(MODEL_PATH, 'rb') as f:
         model = pickle.load(f)
-    print("Model loaded successfully!")
+    print("✅ Model loaded successfully!")
 except Exception as e:
-    print(f"Error loading model: {e}")
+    print(f"❌ Error loading model: {e}")
     model = None
 
-# Feature names in exact order expected by the model
 FEATURE_NAMES = [
     'number of bedrooms',
     'number of bathrooms',
@@ -38,12 +37,15 @@ FEATURE_NAMES = [
 
 @app.route('/', methods=['GET'])
 def index():
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        return f"<h2>Template Error: Make sure index.html is inside a 'templates' folder. Details: {e}</h2>", 500
 
 @app.route('/predict', methods=['POST'])
 def predict():
     if not model:
-        return render_template('index.html', error="Model not loaded on server.")
+        return render_template('index.html', error="Model failed to load on server.")
 
     try:
         input_data = {}
@@ -51,10 +53,7 @@ def predict():
             raw_val = request.form.get(feature, 0)
             input_data[feature] = [float(raw_val)]
 
-        # Convert to DataFrame to retain feature names
         df_input = pd.DataFrame(input_data)
-
-        # Make prediction
         prediction = model.predict(df_input)[0]
         formatted_price = f"${max(0, prediction):,.2f}"
 
@@ -64,4 +63,4 @@ def predict():
         return render_template('index.html', error=f"Prediction error: {str(e)}")
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)
